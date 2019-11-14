@@ -8,8 +8,10 @@
         .module(HygieiaConfig.module)
         .controller('SiteController', SiteController);
 
-    SiteController.$inject = ['$scope', '$q', '$uibModal', 'dashboardData', '$location', 'DashboardType', 'userService', 'authService','dashboardService'];
-    function SiteController($scope, $q, $uibModal, dashboardData, $location, DashboardType, userService, authService, dashboardService) {
+    SiteController.$inject = ['$scope', '$q', '$uibModal', 'dashboardData', '$location', 'DashboardType', 'userService',
+        'authService','dashboardService','user','paginationWrapperService'];
+    function SiteController($scope, $q, $uibModal, dashboardData, $location, DashboardType, userService,
+                            authService, dashboardService, user, paginationWrapperService) {
         var ctrl = this;
 
         // public variables
@@ -32,9 +34,13 @@
         ctrl.admin = admin;
         ctrl.setType = setType;
         ctrl.filterNotOwnedList = filterNotOwnedList;
-        ctrl.filterDashboards = filterDashboards;
         ctrl.editDashboard = editDashboard;
-        ctrl.getInvalidAppOrCompError = getInvalidAppOrCompError;
+        ctrl.pageChangeHandler = pageChangeHandler;
+        ctrl.pageChangeHandlerForMyDash = pageChangeHandlerForMyDash;
+        ctrl.getTotalItems = getTotalItems;
+        ctrl.getTotalItemsMyDash = getTotalItemsMyDash;
+        ctrl.getPageSize = getPageSize;
+        ctrl.filterByTitle = filterByTitle;
 
         if (userService.isAdmin()) {
             ctrl.myadmin = true;
@@ -51,25 +57,30 @@
 
             ctrl.dashboardTypes = types;
 
-            pullDashboards();
-
+            dashboardData.getPageSize().then(function (data) {
+                pullDashboards();
+            });
         })();
+
+        function getTotalItems() {
+            return paginationWrapperService.getTotalItems();
+        }
+
+        function getTotalItemsMyDash() {
+            return paginationWrapperService.getTotalItemsMyDash();
+        }
+
+        function getCurrentPage() {
+            return paginationWrapperService.getCurrentPage();
+        }
+
+        function getPageSize() {
+            return paginationWrapperService.getPageSize();
+        }
 
         function setType(type) {
             ctrl.dashboardType = type;
-        }
-
-        function filterDashboards(item) {
-            var matchesSearch = (!ctrl.search || item.name.toLowerCase().indexOf(ctrl.search.toLowerCase()) !== -1);
-            if (ctrl.dashboardType == DashboardType.PRODUCT) {
-                return item.isProduct && matchesSearch;
-            }
-
-            if (ctrl.dashboardType == DashboardType.TEAM) {
-                return !item.isProduct && matchesSearch;
-            }
-
-            return matchesSearch;
+            pullDashboards(type);
         }
 
         function admin() {
@@ -96,13 +107,14 @@
             });
         }
 
-        function editDashboard(item)
+        function editDashboard(item,size)
         {
             // open modal for renaming dashboard
             var modalInstance = $uibModal.open({
                 templateUrl: 'app/dashboard/views/editDashboard.html',
                 controller: 'EditDashboardController',
                 controllerAs: 'ctrl',
+                size:size,
                 resolve: {
                     dashboardItem: function() {
                         return item;
@@ -123,66 +135,36 @@
         }
 
         function processDashboardResponse(data) {
-            // add dashboards to list
-            ctrl.dashboards = [];
-            var dashboards = [];
-            for (var x = 0; x < data.length; x++) {
-                var board = {
-                    id: data[x].id,
-                    name: dashboardService.getDashboardTitle(data[x]),
-                    isProduct: data[x].type && data[x].type.toLowerCase() === DashboardType.PRODUCT.toLowerCase()
-                };
+            ctrl.dashboards = paginationWrapperService.processDashboardResponse(data, ctrl.dashboardType);
+        }
 
-                if(board.isProduct) {
-                    //console.log(board);
-                }
-                dashboards.push(board);
-            }
-
-            ctrl.dashboards = dashboards;
+        function processDashboardFilterResponse(data) {
+            ctrl.dashboards = paginationWrapperService.processDashboardFilterResponse(data);
         }
 
         function processDashboardError(data) {
-            ctrl.dashboards = [];
+            ctrl.dashboards = paginationWrapperService.processDashboardError(data);
         }
 
         function processMyDashboardResponse(mydata) {
+            ctrl.mydash = paginationWrapperService.processMyDashboardResponse(mydata, ctrl.dashboardType);
+        }
 
-            // add dashboards to list
-            ctrl.mydash = [];
-            var dashboards = [];
-            for (var x = 0; x < mydata.length; x++) {
-
-                dashboards.push({
-                    id: mydata[x].id,
-                    name: dashboardService.getDashboardTitle(mydata[x]),
-                    type: mydata[x].type,
-                    isProduct: mydata[x].type && mydata[x].type.toLowerCase() === DashboardType.PRODUCT.toLowerCase(),
-                    validServiceName:  mydata[x].validServiceName,
-                    validAppName: mydata[x].validAppName,
-                    configurationItemBusServName:  mydata[x].configurationItemBusServName,
-                    configurationItemBusAppName:  mydata[x].configurationItemBusAppName,
-                    configurationItemBusServId:  mydata[x].configurationItemBusServObjectId,
-                    configurationItemBusAppId:  mydata[x].configurationItemBusAppObjectId,
-                    showError: ctrl.getInvalidAppOrCompError(mydata[x])
-                });
-            }
-
-            ctrl.mydash = dashboards;
+        function processFilterMyDashboardResponse(mydata) {
+            ctrl.mydash = paginationWrapperService.processFilterMyDashboardResponse(mydata);
         }
 
         function processMyDashboardError(data) {
-            ctrl.mydash = [];
+            ctrl.mydash = paginationWrapperService.processMyDashboardError(data);
         }
-
-
-
 
         function deleteDashboard(item) {
             var id = item.id;
             dashboardData.delete(id).then(function () {
                 _.remove(ctrl.dashboards, {id: id});
                 _.remove(ctrl.mydash, {id: id});
+                paginationWrapperService.calculateTotalItems(ctrl.dashboardType);
+                paginationWrapperService.calculateTotalItemsMyDash(ctrl.dashboardType);
             }, function(response) {
                 var msg = 'An error occurred while deleting the dashboard';
 
@@ -209,22 +191,47 @@
             console.log("size after reduction  is:" + uniqueArray.length);
             ctrl.dashboards = uniqueArray;
         }
-        function getInvalidAppOrCompError(data){
-            var showError = false;
 
-            if((data.configurationItemBusServName != undefined && !data.validServiceName) || (data.configurationItemBusAppName != undefined && !data.validAppName)){
-                showError = true;
-            }
-            return showError;
-        }
-        function pullDashboards(){
+        function pullDashboards(type) {
             // request dashboards
-            dashboardData.search().then(processDashboardResponse, processDashboardError);
+            dashboardData.searchByPage({"search": '', "type": type, "size": getPageSize(), "page": 0})
+                .then(processDashboardResponse, processDashboardError);
 
             // request my dashboards
-            dashboardData.mydashboard(ctrl.username).then(processMyDashboardResponse, processMyDashboardError);
+            dashboardData.searchMyDashboardsByPage({"username": ctrl.username, "type": type, "size": getPageSize(), "page": 0})
+                .then(processMyDashboardResponse, processMyDashboardError);
+
+            paginationWrapperService.calculateTotalItems(type)
+                .then (function () {
+                    ctrl.totalItems = paginationWrapperService.getTotalItems();
+                })
+
+            paginationWrapperService.calculateTotalItemsMyDash(type)
+                .then (function () {
+                    ctrl.totalItemsMyDash = paginationWrapperService.getTotalItemsMyDash();
+                })
+        }
+
+        function pageChangeHandler(pageNumber) {
+            paginationWrapperService.pageChangeHandler(pageNumber, ctrl.dashboardType)
+                .then(function() {
+                    ctrl.dashboards = paginationWrapperService.getDashboards();
+                });
+        }
+
+        function pageChangeHandlerForMyDash(pageNumber) {
+            paginationWrapperService.pageChangeHandlerForMyDash(pageNumber, ctrl.dashboardType)
+                .then(function() {
+                    ctrl.mydash = paginationWrapperService.getMyDashboards();
+                });
+        }
+
+        function filterByTitle (title) {
+            var promises = paginationWrapperService.filterByTitle(title, ctrl.dashboardType);
+            $q.all(promises).then (function() {
+                ctrl.dashboards = paginationWrapperService.getDashboards();
+                ctrl.mydash = paginationWrapperService.getMyDashboards();
+            });
         }
     }
-
-
 })();

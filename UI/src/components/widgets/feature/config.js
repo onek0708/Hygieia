@@ -48,6 +48,7 @@
 		ctrl.listTypes = [{type: "epics", value: "Epics"}, {type: "issues", value: "Issues"}];
 		ctrl.selectedProject = null;
 		ctrl.selectedTeam = null;
+		ctrl.teamDropdownLabel = "Team";
 
 		ctrl.submit = submitForm;
 		ctrl.getProjectNames = getProjectNames;
@@ -87,6 +88,11 @@
 
 					if (currentCollectorId !== null && item.id === currentCollectorId) {
 						ctrl.selectedTypeIndex = x;
+					}
+					if (obj.properties.mode == "Board") {
+                        ctrl.teamDropdownLabel = "Board";
+                    } else {
+                        ctrl.teamDropdownLabel = "Team";
 					}
 				}
 
@@ -245,13 +251,30 @@
 
 			if (ctrl.collectorId.value === 'Jira') {
 				collectorId = _.find(ctrl.collectors, {name: 'Jira'}).id
+				item = createItemFromSelect(collectorId)
 			} else if (ctrl.collectorId.value === 'VersionOne') {
 				collectorId = _.find(ctrl.collectors, {name: 'VersionOne'}).id
+				item = createItemFromSelect(collectorId)
 			} else if (ctrl.collectorId.value ==='GitlabFeature') {
 				collectorId = _.find(ctrl.collectors, {name: 'GitlabFeature'}).id
+				item = {
+					collectorId: collectorId,
+					options: {
+						featureTool: ctrl.collectorId.value,
+						teamName : ctrl.teamId,
+						teamId : ctrl.teamId,
+						projectName : ctrl.projectId ? ctrl.projectId : "",
+						projectId :ctrl.projectId ? ctrl.projectId : ""
+					}
 			}
 
-			item = {
+
+			};
+			return collectorData.createCollectorItem(item);
+		}
+
+		function createItemFromSelect(collectorId) {
+			return {
 				collectorId: collectorId,
 				options: {
 					featureTool: ctrl.collectorId.value,
@@ -260,8 +283,7 @@
 					projectName : ctrl.selectedProjectObject.name,
 					projectId :ctrl.selectedProjectObject.pId
 				}
-			};
-			return collectorData.createCollectorItem(item);
+			}
 		}
 
 		function processCollectorItemResponse(response) {
@@ -270,10 +292,10 @@
 				options : {
 					id : widgetConfig.options.id,
 					featureTool: ctrl.collectorId.value,
-					teamName : ctrl.selectedTeamObject.name,
-					teamId : ctrl.selectedTeamObject.teamId,
-					projectName : ctrl.selectedProjectObject.name,
-					projectId : ctrl.selectedProjectObject.pId,
+					teamName : response.data.options.teamName,
+					teamId : response.data.options.teamId,
+					projectName : response.data.options.projectName,
+					projectId : response.data.options.projectId,
 					showStatus : { // starting configuration for what is currently showing. Needs to be mutually exclusive!
 						kanban: "kanban" === ctrl.sprintType || "scrumkanban" === ctrl.sprintType,
 						scrum: "scrum" === ctrl.sprintType

@@ -13,39 +13,49 @@
 		var ctrl = this;
 		var widgetConfig = modalData.widgetConfig;
 
-		ctrl.repoOptions = [{
-			name: 'GitHub',
-			value: 'GitHub'
-		}, {
-			name: 'Subversion',
-			value: 'Subversion'
-		},{
-			name: 'Bitbucket',
-			value: 'Bitbucket'
-		}, {
-			name: 'Gitlab',
-			value: 'Gitlab'
-		}];
+		// Request collectors
+		collectorData.collectorsByType('scm').then(processCollectorsResponse);
 
-		if (!widgetConfig.options.scm) {
-			ctrl.repoOption="";
-		}
-		else
-		{
-			var myindex;
+		function processCollectorsResponse(data) {
+			ctrl.collectors = data;
 
-			for (var v = 0; v < ctrl.repoOptions.length; v++) {
-				if (ctrl.repoOptions[v].name === widgetConfig.options.scm.name) {
-					myindex = v;
-				}
+			ctrl.repoOptions =[];
+			_(data).forEach(function (collector) {
+				ctrl.repoOptions.push({name:collector.name,value:collector.name});
+			});
+			var collector = modalData.dashboard.application.components[0].collectorItems.SCM;
+			var collectorId = (collector!=null && collector[0].collector!=null)? collector[0].collector.id: null;
+			if(collectorId!=null){
+                collectorData.collectorsById(collectorId).then(function(response){
+                    var collectorResponse = response[0];
+                    var scmType = 	collectorResponse.name;
+                    var myIndex;
+                    if(scmType!=null){
+                        for (var v = 0; v < ctrl.repoOptions.length; v++) {
+                            if (ctrl.repoOptions[v].name.toUpperCase() === scmType.toUpperCase()) {
+                                myIndex = v;
+                            }
+                        }
+                        ctrl.repoOption=ctrl.repoOptions[myIndex];
+                    }
+
+                });
 			}
-			ctrl.repoOption=ctrl.repoOptions[myindex];
-		}
+			// sort collectorItems by lastUpdated
+            var sorted = _.sortBy(collector,function(collectorItem){
+                return - (new Date(collectorItem.lastUpdated).getTime());
+            });
 
-		ctrl.repoUrl = widgetConfig.options.url;
-		ctrl.gitBranch = widgetConfig.options.branch;
-		ctrl.repouser = widgetConfig.options.userID;
-		ctrl.repopass = widgetConfig.options.password;
+			if(!angular.isUndefined(sorted) && !angular.isUndefined(sorted[0])){
+                ctrl.repoUrl = removeGit(sorted[0].options.url);
+                ctrl.gitBranch = sorted[0].options.branch;
+                ctrl.repouser = sorted[0].options.userID;
+                ctrl.repopass = sorted[0].options.password;
+                ctrl.repoPersonalAccessToken = sorted[0].options.personalAccessToken;
+			}
+
+
+		}
 
 		// public variables
 		ctrl.submitted = false;
@@ -54,12 +64,7 @@
 		// public methods
 		ctrl.submit = submitForm;
 
-		// Request collecters
-		collectorData.collectorsByType('scm').then(processCollectorsResponse);
 
-		function processCollectorsResponse(data) {
-			ctrl.collectors = data;
-		}
 
 		/*
 		 * function submitForm(valid, url) { ctrl.submitted = true; if (valid &&
@@ -104,7 +109,28 @@
 							}
 						});
 					}
-				} else {
+				}
+				if (ctrl.repoPersonalAccessToken) {
+					if (ctrl.repoPersonalAccessToken === widgetConfig.options.personalAccessToken) {
+						//password is unchanged in the form so don't encrypt it again
+						try {
+							createCollectorItem().then(processCollectorItemResponse, handleError);
+						} catch (e) {
+							console.log(e);
+						}
+					} else {
+						collectorData.encrypt(ctrl.repoPersonalAccessToken).then(function (response) {
+
+							ctrl.repoPersonalAccessToken = response;
+							try {
+								createCollectorItem().then(processCollectorItemResponse, handleError);
+							} catch (e) {
+								console.log(e);
+							}
+						});
+					}
+				}
+				else {
 					createCollectorItem().then(processCollectorItemResponse, handleError);
 				}
 			}
@@ -122,23 +148,27 @@
 			return _.isEmpty(value)||_.isUndefined(value)?"":value
 		}
 
+		function removeGit(url){
+			if (!angular.isUndefined(url) && url.endsWith(".git")) {
+				url = url.substring(0, url.lastIndexOf(".git"));
+			}
+			return url;
+		}
 		function getOptions(scm) {
 			return {
-				scm: scm,
-				url: ctrl.repoUrl,
+				url: removeGit(ctrl.repoUrl),
 				branch: getNonNullString(ctrl.gitBranch),
                 userID: getNonNullString(ctrl.repouser),
-                password: getNonNullString(ctrl.repopass)
+                password: getNonNullString(ctrl.repopass),
+				personalAccessToken:getNonNullString(ctrl.repoPersonalAccessToken)
 			}
 		}
 
 		function getUniqueOptions (scm) {
 			return {
-                scm: scm,
-                url: ctrl.repoUrl,
-                branch: ctrl.gitBranch,
-                userID: getNonNullString(ctrl.repouser)
-            }
+                url: removeGit(ctrl.repoUrl),
+                branch: ctrl.gitBranch
+			}
 		}
 
 		function createCollectorItem() {
@@ -183,13 +213,8 @@
 		function processCollectorItemResponse(response) {
 			var postObj = {
 				name : "repo",
-				options : {
-					id : widgetConfig.options.id,
-					scm : ctrl.repoOption,
-					url : ctrl.repoUrl,
-					branch : ctrl.gitBranch,
-					userID : getNonNullString(ctrl.repouser),
-					password: getNonNullString(ctrl.repopass)
+				options:{
+					id: widgetConfig.options.id
 				},
 				componentId : modalData.dashboard.application.components[0].id,
 				collectorItemId : response.data.id

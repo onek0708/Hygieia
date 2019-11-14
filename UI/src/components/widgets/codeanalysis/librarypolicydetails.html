@@ -9,7 +9,7 @@
                     <span>Report Date: {{libraryPolicyDetails.libraryPolicyResult.timestamp | date:'MMM d, HH:mm:ss'}}</span>
                 </div>
                 <div class="col-md-3 view-in-tool pull-right">
-                    <a ng-href="{{::libraryPolicyDetails.libraryPolicyResult.reportUrl}}" target="_blank">
+                    <a ng-href="{{::libraryPolicyDetails.libraryPolicyResult.reportUrl}}" target="_blank" rel="noopener noreferrer">
                         View Report <span class="fa fa-angle-right"></span>
                     </a>
                 </div>
@@ -19,7 +19,7 @@
 
         <div class="widget-detail-body">
 
-            <div class="dash-row" data-ng-init="levels=['High','Medium','Low']">
+            <div class="dash-row" data-ng-init="levels=['Critical','High','Medium','Low']">
                 <div ng-repeat="level in levels">
                     <span class="pull-left widget-font-bold widget-heading"></span>
                     <span class="pull-left widget-font-bold">{{level}} (Total Count: {{libraryPolicyDetails.getLevelCount(level)}})</span>

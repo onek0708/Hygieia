@@ -1,15 +1,15 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-  <modelVersion>4.0.0</modelVersion>
-  <artifactId>UI</artifactId>
-  <packaging>pom</packaging>
-  <name>${project.groupId}:${project.artifactId}</name>
-  <description>Hygieia UI module</description>
-  <url>https://github.com/capitalone/Hygieia</url>
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>UI</artifactId>
+    <packaging>pom</packaging>
+    <name>${project.groupId}:${project.artifactId}</name>
+    <description>Hygieia UI module</description>
+    <url>https://github.com/Hygieia/Hygieia</url>
 
   <parent>
     <groupId>com.capitalone.dashboard</groupId>
     <artifactId>Hygieia</artifactId>
-    <version>2.0.5-SNAPSHOT</version>
+      <version>3.1.1-SNAPSHOT</version>
   </parent>
   
   <properties>
@@ -57,7 +57,7 @@
         <groupId>com.github.eirslett</groupId>
         <artifactId>frontend-maven-plugin</artifactId>
         <!-- if you have issues with your proxy, be careful https://github.com/eirslett/frontend-maven-plugin/commit/bcd8a7883703e28e3c5346e1f34c64332994e442 -->
-        <version>0.0.29</version>
+        <version>1.6</version>
 
 				<configuration>
 					<workingDirectory>./</workingDirectory>
@@ -72,8 +72,8 @@
               <goal>install-node-and-npm</goal>
             </goals>
             <configuration>
-              <nodeVersion>v5.4.1</nodeVersion>
-              <npmVersion>2.14.15</npmVersion>
+              <nodeVersion>v6.9.1</nodeVersion>
+              <npmVersion>5.0.1</npmVersion>
                 <nodeDownloadRoot>http://nodejs.org/dist/</nodeDownloadRoot>
                 <npmDownloadRoot>http://registry.npmjs.org/npm/-/</npmDownloadRoot>
             </configuration>
@@ -86,17 +86,7 @@
             </goals>
 <!-- Optional configuration which provides for running any npm command -->
             <configuration>
-              <arguments>install</arguments>
-            </configuration>
-          </execution>
-
-          <execution>
-            <id>bower install</id>
-            <goals>
-              <goal>bower</goal>
-            </goals>
-            <configuration>
-              <arguments>install</arguments>
+              <arguments>install --ignore-scripts</arguments>
             </configuration>
           </execution>
 

@@ -28,8 +28,8 @@
         	}
         });
 
-    EditDashboardController.$inject = ['$uibModalInstance', 'dashboardData', 'userData', 'userService', 'dashboardItem', '$scope', '$q', 'cmdbData', 'dashboardService'];
-    function EditDashboardController($uibModalInstance, dashboardData, userData, userService, dashboardItem, $scope, $q, cmdbData, dashboardService) {
+    EditDashboardController.$inject = ['$uibModalInstance', 'dashboardData', 'userData', 'userService', 'dashboardItem', '$scope', '$q', 'cmdbData', 'dashboardService','widgetManager'];
+    function EditDashboardController($uibModalInstance, dashboardData, userData, userService, dashboardItem, $scope, $q, cmdbData, dashboardService,widgetManager) {
 
         var ctrl = this;
 
@@ -40,10 +40,17 @@
         ctrl.tabs = [
             { name: "Dashboard Title"},
             { name: "Business Service/ Application"},
-            { name: "Owner Information"}
+            { name: "Owner Information"},
+            { name: "Widget Management"},
+            { name: "Score"}
 
         ];
         ctrl.tabView = ctrl.tabs[0].name;
+        ctrl.activeWidgets = [];
+        ctrl.scoreSettings = {
+            scoreEnabled : !!dashboardItem.scoreEnabled,
+            scoreDisplay : dashboardItem.scoreDisplay
+        };
 
         // public methods
         ctrl.submit = submit;
@@ -56,6 +63,9 @@
         ctrl.tabToggleView = tabToggleView;
         ctrl.isValidBusServName = isValidBusServName;
         ctrl.isValidBusAppName = isValidBusAppName;
+        ctrl.saveWidgets = saveWidgets;
+        ctrl.onConfigurationItemBusAppSelect = onConfigurationItemBusAppSelect;
+        ctrl.submitScoreSettings = submitScoreSettings;
 
         ctrl.validBusServName = isValidBusServName();
         ctrl.validBusAppName = isValidBusAppName();
@@ -65,6 +75,39 @@
         ctrl.authType = userService.getAuthType();
 
         dashboardData.owners(dashboardItem.id).then(processOwnerResponse);
+
+        dashboardData.detail(dashboardItem.id).then(processDashboardDetail);
+
+
+        function processDashboardDetail(response){
+            var data = response;
+            ctrl.activeWidgets=[];
+            ctrl.widgets = widgetManager.getWidgets();
+            if(response.template =='widgets'){
+                ctrl.selectWidgetsDisabled = false;
+                ctrl.activeWidgets = response.activeWidgets;
+            }else{
+                ctrl.selectWidgetsDisabled = true;
+                _.map(ctrl.widgets, function (value, key) {
+                    ctrl.activeWidgets.push(key);
+                });
+            }
+            // collection to hold selected widgets
+            ctrl.widgetSelections={};
+            // iterate through widgets and add existing widgets for dashboard
+            _.map(ctrl.widgets, function (value, key) {
+                if(key!='')
+                    if(ctrl.activeWidgets.indexOf(key)>-1){
+                        ctrl.widgetSelections[key] = true;
+                    }else{
+                        ctrl.widgetSelections[key] = false;
+                    }
+            });
+            _(ctrl.widgets).forEach(function (widget) {
+                var wd = widget;
+                ctrl.widgetSelections[widget.title]= false;
+            });
+        }
 
         function processUserResponse(response) {
             $scope.users = response.data;
@@ -206,6 +249,54 @@
                 valid = false;
             }
             return valid;
+        }
+
+        // Save template - after edit
+        function saveWidgets(form) {
+            findSelectedWidgets();
+            if(form.$valid ){
+                var submitData = {
+                    activeWidgets: ctrl.selectedWidgets
+                };
+                dashboardData
+                    .updateDashboardWidgets(dashboardItem.id,submitData)
+                    .success(function (data) {
+                        $uibModalInstance.close();
+                    })
+                    .error(function (data) {
+                        var msg = 'An error occurred while editing dashboard';
+                        swal(msg);
+                    });
+            }
+        }
+
+        // find selected widgets and add it to collection
+        function findSelectedWidgets(){
+            ctrl.selectedWidgets = [];
+            for(var selectedWidget in ctrl.widgetSelections){
+                var s = ctrl.widgetSelections[selectedWidget];
+                if(s){
+                    ctrl.selectedWidgets.push(selectedWidget);
+                }
+            }
+        }
+
+        function onConfigurationItemBusAppSelect(value){
+            ctrl.configurationItemBusApp = value;
+        }
+
+        function submitScoreSettings(form) {
+            if(form.$valid ){
+                dashboardData
+                    .updateDashboardScoreSettings(dashboardItem.id, ctrl.scoreSettings.scoreEnabled, ctrl.scoreSettings.scoreDisplay)
+                    .success(function (data) {
+                        $uibModalInstance.close();
+                    })
+                    .error(function (data) {
+                        var msg = 'An error occurred while editing dashboard';
+                        swal(msg);
+                    });
+            }
         }
     }
 })();
